@@ -90,12 +90,12 @@ static int asm330_read_raw(struct iio_dev * indio_dev, struct iio_chan_spec cons
             asm330lhh_angular_rate_raw_get(&asm330_ctx, data_raw_angular_rate);
         }
 
-        pr_info("ASM330 read raw: accel[0] %x\n", data_raw_acceleration[0]);
-        pr_info("ASM330 read raw: accel[1] %x\n", data_raw_acceleration[1]);
-        pr_info("ASM330 read raw: accel[2] %x\n", data_raw_acceleration[2]);
-        pr_info("ASM330 read raw: gyro[0] %x\n", data_raw_angular_rate[0]);
-        pr_info("ASM330 read raw: gyro[1] %x\n", data_raw_angular_rate[1]);
-        pr_info("ASM330 read raw: gyro[2] %x\n", data_raw_angular_rate[2]);
+        pr_info("ASM330 read raw: accel[0] %hd\n", data_raw_acceleration[0]);
+        pr_info("ASM330 read raw: accel[1] %hd\n", data_raw_acceleration[1]);
+        pr_info("ASM330 read raw: accel[2] %hd\n", data_raw_acceleration[2]);
+        pr_info("ASM330 read raw: gyro[0] %hd\n", data_raw_angular_rate[0]);
+        pr_info("ASM330 read raw: gyro[1] %hd\n", data_raw_angular_rate[1]);
+        pr_info("ASM330 read raw: gyro[2] %hd\n", data_raw_angular_rate[2]);
 
     } else {
         return -EINVAL;
@@ -106,8 +106,53 @@ static int asm330_read_raw(struct iio_dev * indio_dev, struct iio_chan_spec cons
 static const struct iio_chan_spec asm_channels[] = {
 	{
 		.type = IIO_ACCEL,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-	}
+		.modified = 1,
+        .channel2 = IIO_MOD_X,
+        .scan_index = 0,
+        .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	    .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |
+				BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        .scan_type = {
+            .sign = 's',
+            .realbits = 16,
+            .storagebits = 16,
+            .shift = 0,
+            .endianness = IIO_LE,
+        },
+	}, 
+    {
+        .type = IIO_ACCEL,
+		.modified = 1,
+        .channel2 = IIO_MOD_Y,
+        .scan_index = 1,
+        .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	    .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |
+				BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        .scan_type = {
+            .sign = 's',
+            .realbits = 16,
+            .storagebits = 16,
+            .shift = 0,
+            .endianness = IIO_LE,
+        },
+    },
+    {
+        .type = IIO_ACCEL,
+		.modified = 1,
+        .channel2 = IIO_MOD_Z,
+        .scan_index = 2,
+        .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	    .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |
+				BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        .scan_type = {
+            .sign = 's',
+            .realbits = 16,
+            .storagebits = 16,
+            .shift = 0,
+            .endianness = IIO_LE,
+        },
+    },
+    IIO_CHAN_SOFT_TIMESTAMP(3),
 };
 
 static const struct iio_info asm330_iio_info = {
@@ -133,7 +178,11 @@ static int asm330_probe(struct spi_device *spi) {
 	indio_dev->num_channels = ARRAY_SIZE(asm_channels);
 
 	spi_set_drvdata(spi, indio_dev);
-    iio_device_register(indio_dev);
+    int ret = iio_device_register(indio_dev);
+    if (ret < 0 ){
+        pr_err("Unable to register iio device for asm330\n");
+        return ret;
+    }
 
     /* Interact with IMU*/
     pr_info("ASM330 Driver: Probing device\n");
@@ -168,7 +217,9 @@ static int asm330_probe(struct spi_device *spi) {
 
 static void asm330_remove(struct spi_device *spi) {
     pr_info("ASM330 Driver: Removing device\n");
-
+    struct iio_dev * indio_dev = spi_get_drvdata(spi);
+    iio_device_unregister(indio_dev);
+    iio_device_free(indio_dev);
 }
 
 static const struct spi_device_id spi_asm330_ids[] = {
