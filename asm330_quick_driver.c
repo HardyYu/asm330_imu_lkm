@@ -18,6 +18,15 @@ MODULE_DESCRIPTION("An IMU driver for asm330 with minimal code");
 
 stmdev_ctx_t asm330_ctx;
 
+struct asm330_iio_t {
+    struct spi_device *asm330_spi;
+    struct mutex mtx;
+    asm330lhh_status_reg_t status_reg;
+    uint32_t    timestamp;
+    int16_t     accel[3];
+    int16_t     gyro[3];
+};
+
 static int32_t platform_write(void *handle, uint8_t reg, const uint8_t *bufp, uint16_t len) {
     struct spi_transfer xfer[2];
     struct spi_message msg;
@@ -76,26 +85,27 @@ static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t 
 
 static int asm330_read_raw(struct iio_dev * indio_dev, struct iio_chan_spec const * chan,
                              int *val, int *val2, long mask) {
+    struct asm330_iio_t *data = iio_priv(indio_dev);
     if (mask == IIO_CHAN_INFO_RAW){
-        asm330lhh_status_reg_t status_reg;
-        int16_t data_raw_acceleration[3];
-        int16_t data_raw_angular_rate[3];
-    
-    
-        asm330lhh_status_reg_get(&asm330_ctx, &status_reg);
-        if (status_reg.xlda) {
-            asm330lhh_acceleration_raw_get(&asm330_ctx, data_raw_acceleration);
-        }
-        if (status_reg.gda) {
-            asm330lhh_angular_rate_raw_get(&asm330_ctx, data_raw_angular_rate);
-        }
 
-        pr_info("ASM330 read raw: accel[0] %hd\n", data_raw_acceleration[0]);
-        pr_info("ASM330 read raw: accel[1] %hd\n", data_raw_acceleration[1]);
-        pr_info("ASM330 read raw: accel[2] %hd\n", data_raw_acceleration[2]);
-        pr_info("ASM330 read raw: gyro[0] %hd\n", data_raw_angular_rate[0]);
-        pr_info("ASM330 read raw: gyro[1] %hd\n", data_raw_angular_rate[1]);
-        pr_info("ASM330 read raw: gyro[2] %hd\n", data_raw_angular_rate[2]);
+        mutex_lock(&data->mtx);
+        asm330lhh_status_reg_get(&asm330_ctx, &data->status_reg);
+        if (data->status_reg.xlda) {
+            asm330lhh_acceleration_raw_get(&asm330_ctx, data->accel);
+        }
+        if (data->status_reg.gda) {
+            asm330lhh_angular_rate_raw_get(&asm330_ctx, data->gyro);
+        }
+        mutex_unlock(&data->mtx);
+        switch (chan->scan_index){
+            case 0: { *val = data->accel[0]; break;}
+            case 1: {*val = data->accel[1];  break;}
+            case 2: {*val = data->accel[2];  break;}
+            case 3: {*val = data->gyro[0];  break;}
+            case 4: {*val = data->gyro[1];  break;}
+            case 5: {*val = data->gyro[2];  break;}
+            default: {return -EINVAL;}
+        }
 
     } else {
         return -EINVAL;
@@ -152,7 +162,55 @@ static const struct iio_chan_spec asm_channels[] = {
             .endianness = IIO_LE,
         },
     },
-    IIO_CHAN_SOFT_TIMESTAMP(3),
+    {
+        .type = IIO_ANGL_VEL,
+		.modified = 1,
+        .channel2 = IIO_MOD_X,
+        .scan_index = 3,
+        .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	    .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |
+				BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        .scan_type = {
+            .sign = 's',
+            .realbits = 16,
+            .storagebits = 16,
+            .shift = 0,
+            .endianness = IIO_LE,
+        },
+    },
+    {
+        .type = IIO_ANGL_VEL,
+		.modified = 1,
+        .channel2 = IIO_MOD_Y,
+        .scan_index = 4,
+        .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	    .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |
+				BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        .scan_type = {
+            .sign = 's',
+            .realbits = 16,
+            .storagebits = 16,
+            .shift = 0,
+            .endianness = IIO_LE,
+        },
+    },
+    {
+        .type = IIO_ANGL_VEL,
+		.modified = 1,
+        .channel2 = IIO_MOD_Z,
+        .scan_index = 5,
+        .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+	    .info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |
+				BIT(IIO_CHAN_INFO_SAMP_FREQ),
+        .scan_type = {
+            .sign = 's',
+            .realbits = 16,
+            .storagebits = 16,
+            .shift = 0,
+            .endianness = IIO_LE,
+        },
+    },
+    IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
 static const struct iio_info asm330_iio_info = {
@@ -162,20 +220,25 @@ static const struct iio_info asm330_iio_info = {
 static int asm330_probe(struct spi_device *spi) {
     /* Setting up IIO dev */
     struct iio_dev *indio_dev;
+    struct asm330_iio_t *data;
 
 	printk("dt_iio - Now I am in the Probe function!\n");
 
-	indio_dev = iio_device_alloc(&spi->dev, sizeof(struct iio_dev));
+	indio_dev = iio_device_alloc(&spi->dev, sizeof(struct asm330_iio_t));
 	if(!indio_dev) {
 		printk("dt_iio - Error! Out of memory\n");
 		return -ENOMEM;
 	}
+
+    data = iio_priv(indio_dev);
 
 	indio_dev->name = "asm330_iio";
 	indio_dev->info = &asm330_iio_info;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->channels = asm_channels;
 	indio_dev->num_channels = ARRAY_SIZE(asm_channels);
+
+    mutex_init(&data->mtx);
 
 	spi_set_drvdata(spi, indio_dev);
     int ret = iio_device_register(indio_dev);
