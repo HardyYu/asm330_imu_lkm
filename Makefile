@@ -1,5 +1,5 @@
-obj-m += asm330_q_driver.o 
-asm330_q_driver-objs := asm330lhh_reg.o asm330_quick_driver.o 
+obj-m += asm330_kmodule.o 
+asm330_kmodule-objs := asm330lhh_reg.o asm330_module.o 
  
 PWD := $(CURDIR)
  
