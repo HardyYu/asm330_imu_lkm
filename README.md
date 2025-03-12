@@ -57,5 +57,5 @@ watch -n 0.25 cat in_accel_x_raw in_accel_y_raw  in_accel_z_raw
 ## Kalman Filter 
 Kalman filter in this module is currently implemented in the user space python program. Since the kernel is known to have difficulty to operate floating point operation, I decided to workaround the issue by reading IMU data from IIO device in python, and conduct the sensor fusion also in python. Kalman filter in kernel space will be on my TODO list.\
 
-Here is a demonstration of Kalman filter generated pitch angle.
-![pitch angle comparsion](pitch_angle_comparsion.png "Kalman filter on Pitch angle")
+Here is a demonstration of Kalman filter generated pitch angle.\
+![pitch angle comparsion](./pitch_angle_comparison.png "Kalman filter on Pitch")
