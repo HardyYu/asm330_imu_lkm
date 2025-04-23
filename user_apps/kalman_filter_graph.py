@@ -25,7 +25,7 @@ class KalmanFilter:
 
 
 # Initialize the Kalman filter for pitch
-kf_pitch = KalmanFilter(0.1, 0.1)  # Process and measurement noise for pitch
+kf_pitch = KalmanFilter(0.02, 0.4)  # Process and measurement noise for pitch
 
 # Initialize IIO context and device
 ctx = iio.Context()
@@ -68,8 +68,8 @@ try:
         # Plot the results (every 10 samples)
         if len(raw_pitch_data) % 10 == 0:
             plt.clf()  # Clear the figure
-            plt.plot(raw_pitch_data, label="Raw Pitch Angle")
-            plt.plot(filtered_pitch_data, label="Filtered Pitch Angle")
+            plt.plot(raw_pitch_data, 'o', label="Raw Pitch Angle")
+            plt.plot(filtered_pitch_data, '-', label="Filtered Pitch Angle")
             plt.xlabel("Time (samples)")
             plt.ylabel("Pitch Angle (°)")
             plt.legend(loc="best")
@@ -79,6 +79,6 @@ try:
             plt.savefig("pitch_angle_comparison.png", dpi=300)  # Save at 300 DPI
             print("Plot saved as 'pitch_angle_comparison.png'")
 
-        time.sleep(0.1)  # Small delay for continuous reading
+        time.sleep(0.02)  # Small delay for continuous reading
 except KeyboardInterrupt:
     print("\nStopped by user")
